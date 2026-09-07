@@ -63,4 +63,15 @@ public class ItemRevisionController {
                 )
         );
     }
+
+    @PostMapping("/revisions/{revisionId}/create-next")
+    public ResponseEntity<ItemRevision> createNextRevision(
+            @PathVariable Long revisionId) {
+
+        return ResponseEntity.status(HttpStatus.CREATED).body(
+                revisionService.createRevisionFromExisting(
+                        revisionId
+                )
+        );
+    }
 }

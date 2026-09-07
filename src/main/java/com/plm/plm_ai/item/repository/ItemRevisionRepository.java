@@ -21,4 +21,8 @@ public interface ItemRevisionRepository
             Item item,
             String revisionCode
     );
+
+    Optional<ItemRevision> findTopByItemOrderByRevisionCodeDesc(
+            Item item
+    );
 }

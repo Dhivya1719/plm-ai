@@ -4,6 +4,7 @@ import com.plm.plm_ai.item.BOMLine;
 import com.plm.plm_ai.item.service.BOMLineService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import com.plm.plm_ai.change.dto.ImpactAnalysisResponse;
 
 import java.util.List;
 
@@ -48,5 +49,14 @@ public class BOMLineController {
         bomLineService.deleteBOMLine(bomLineId);
 
         return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("/{revisionId}/impact-analysis")
+    public ResponseEntity<ImpactAnalysisResponse> analyzeImpact(
+            @PathVariable Long revisionId) {
+
+        return ResponseEntity.ok(
+                bomLineService.analyzeImpact(revisionId)
+        );
     }
 }

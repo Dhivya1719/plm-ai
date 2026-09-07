@@ -9,10 +9,13 @@ import com.plm.plm_ai.item.exception.BOMSelfReferenceException;
 import com.plm.plm_ai.item.repository.BOMLineRepository;
 import com.plm.plm_ai.item.repository.ItemRevisionRepository;
 import org.springframework.stereotype.Service;
-
+import com.plm.plm_ai.item.dto.WhereUsedResponse;
+import java.util.ArrayList;
+import com.plm.plm_ai.change.dto.ImpactAnalysisResponse;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Set;
+
+import java.util.List;
 
 @Service
 public class BOMLineService {
@@ -184,5 +187,145 @@ public class BOMLineService {
         }
 
         bomLineRepository.deleteById(bomLineId);
+    }
+
+    public List<WhereUsedResponse> getWhereUsed(Long revisionId) {
+
+        // Verify that the revision exists
+        itemRevisionRepository.findById(revisionId)
+                .orElseThrow(() ->
+                        new RuntimeException(
+                                "Item Revision not found with id: " + revisionId
+                        ));
+
+        // Find all BOM lines where this revision is used as a child
+        List<BOMLine> bomLines =
+                bomLineRepository.findByChildRevisionId(revisionId);
+
+        List<WhereUsedResponse> response = new ArrayList<>();
+
+        for (BOMLine bomLine : bomLines) {
+
+            ItemRevision parentRevision =
+                    bomLine.getParentRevision();
+
+            response.add(
+                    new WhereUsedResponse(
+                            parentRevision.getId(),
+                            parentRevision.getItem().getItemNumber(),
+                            parentRevision.getItem().getName(),
+                            parentRevision.getRevisionCode(),
+                            bomLine.getQuantity()
+                    )
+            );
+        }
+
+        return response;
+    }
+
+    public ImpactAnalysisResponse analyzeImpact(Long revisionId) {
+
+        ItemRevision affectedRevision =
+                itemRevisionRepository.findById(revisionId)
+                        .orElseThrow(() ->
+                                new RuntimeException(
+                                        "Revision not found"
+                                ));
+
+        List<BOMLine> directWhereUsed =
+                bomLineRepository.findByChildRevisionId(revisionId);
+
+        List<ImpactAnalysisResponse.ImpactItem> directImpacts =
+                new ArrayList<>();
+
+        Set<Long> visited = new HashSet<>();
+
+        for (BOMLine bomLine : directWhereUsed) {
+
+            ItemRevision parent =
+                    bomLine.getParentRevision();
+
+            directImpacts.add(
+                    new ImpactAnalysisResponse.ImpactItem(
+                            parent.getId(),
+                            parent.getItem().getItemNumber(),
+                            parent.getRevisionCode()
+                    )
+            );
+
+            visited.add(parent.getId());
+        }
+
+        List<ImpactAnalysisResponse.ImpactItem> indirectImpacts =
+                new ArrayList<>();
+
+        for (BOMLine bomLine : directWhereUsed) {
+
+            findIndirectImpacts(
+                    bomLine.getParentRevision().getId(),
+                    visited,
+                    indirectImpacts
+            );
+        }
+
+        int bomImpactCount =
+                directImpacts.size()
+                        + indirectImpacts.size();
+
+        String risk;
+
+        if (bomImpactCount == 0) {
+            risk = "LOW";
+        }
+        else if (bomImpactCount <= 2) {
+            risk = "MEDIUM";
+        }
+        else {
+            risk = "HIGH";
+        }
+
+        return new ImpactAnalysisResponse(
+                affectedRevision.getId(),
+                affectedRevision.getItem().getItemNumber(),
+                affectedRevision.getRevisionCode(),
+                directImpacts,
+                indirectImpacts,
+                bomImpactCount,
+                risk
+        );
+    }
+    private void findIndirectImpacts(
+            Long revisionId,
+            Set<Long> visited,
+            List<ImpactAnalysisResponse.ImpactItem> indirectImpacts) {
+
+        List<BOMLine> whereUsed =
+                bomLineRepository.findByChildRevisionId(revisionId);
+
+        for (BOMLine bomLine : whereUsed) {
+
+            ItemRevision parent =
+                    bomLine.getParentRevision();
+
+            if (visited.contains(parent.getId())) {
+                continue;
+            }
+
+            visited.add(parent.getId());
+
+            indirectImpacts.add(
+                    new ImpactAnalysisResponse.ImpactItem(
+                            parent.getId(),
+                            parent.getItem().getItemNumber(),
+                            parent.getRevisionCode()
+                    )
+            );
+
+            findIndirectImpacts(
+                    parent.getId(),
+                    visited,
+                    indirectImpacts
+            );
+        }
     }
 }

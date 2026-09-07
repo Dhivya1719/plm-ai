@@ -7,10 +7,16 @@ import java.util.List;
 
 public interface BOMLineRepository extends JpaRepository<BOMLine, Long> {
 
+    // Get all components of a parent revision
     List<BOMLine> findByParentRevisionId(Long parentRevisionId);
 
+    // Check whether a parent-child relationship already exists
     boolean existsByParentRevisionIdAndChildRevisionId(
             Long parentRevisionId,
             Long childRevisionId
     );
+
+    // WHERE-USED:
+    // Find all BOM lines where the given revision is the child
+    List<BOMLine> findByChildRevisionId(Long childRevisionId);
 }
