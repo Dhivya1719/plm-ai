@@ -6,6 +6,7 @@ import com.plm.plm_ai.change.service.EngineeringChangeOrderService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.security.access.prepost.PreAuthorize;
 
 import java.util.List;
 
@@ -25,6 +26,7 @@ public class EngineeringChangeOrderController {
     // CREATE ECO FROM APPROVED ECR
     // ============================================================
 
+    @PreAuthorize("hasRole('CHANGE_MANAGER')")
     @PostMapping("/from-ecr/{ecrId}")
     public ResponseEntity<EngineeringChangeOrder> createECO(
             @PathVariable Long ecrId,
@@ -40,6 +42,7 @@ public class EngineeringChangeOrderController {
     // GET ALL ECOs
     // ============================================================
 
+    @PreAuthorize("hasAnyRole('ENGINEER', 'REVIEWER', 'CHANGE_MANAGER')")
     @GetMapping
     public ResponseEntity<List<EngineeringChangeOrder>> getAllECOs() {
 
@@ -52,6 +55,7 @@ public class EngineeringChangeOrderController {
     // GET ECO BY ID
     // ============================================================
 
+    @PreAuthorize("hasAnyRole('ENGINEER', 'REVIEWER', 'CHANGE_MANAGER')")
     @GetMapping("/{ecoId}")
     public ResponseEntity<EngineeringChangeOrder> getECOById(
             @PathVariable Long ecoId) {
@@ -65,6 +69,7 @@ public class EngineeringChangeOrderController {
     // UPDATE ECO STATUS
     // ============================================================
 
+    @PreAuthorize("hasRole('CHANGE_MANAGER')")
     @PutMapping("/{ecoId}/status")
     public ResponseEntity<EngineeringChangeOrder> updateStatus(
             @PathVariable Long ecoId,

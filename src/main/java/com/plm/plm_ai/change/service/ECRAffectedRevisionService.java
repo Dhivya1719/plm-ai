@@ -6,6 +6,8 @@ import com.plm.plm_ai.change.repository.ECRAffectedRevisionRepository;
 import com.plm.plm_ai.change.repository.EngineeringChangeRequestRepository;
 import com.plm.plm_ai.item.ItemRevision;
 import com.plm.plm_ai.item.repository.ItemRevisionRepository;
+
+import jakarta.transaction.Transactional;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -27,6 +29,10 @@ public class ECRAffectedRevisionService {
         this.revisionRepository = revisionRepository;
     }
 
+    // ============================================================
+    // ADD AFFECTED REVISION
+    // ============================================================
+
     public ECRAffectedRevision addAffectedRevision(
             Long ecrId,
             Long revisionId,
@@ -42,6 +48,7 @@ public class ECRAffectedRevisionService {
                         .orElseThrow(() ->
                                 new RuntimeException("Item Revision not found"));
 
+        // Prevent duplicate affected revision
         if (affectedRevisionRepository
                 .existsByEcrIdAndItemRevisionId(ecrId, revisionId)) {
 
@@ -60,8 +67,28 @@ public class ECRAffectedRevisionService {
         return affectedRevisionRepository.save(affected);
     }
 
+    // ============================================================
+    // GET AFFECTED REVISIONS
+    // ============================================================
+
     public List<ECRAffectedRevision> getAffectedRevisions(Long ecrId) {
 
         return affectedRevisionRepository.findByEcrId(ecrId);
+    }
+
+    // ============================================================
+    // REMOVE AFFECTED REVISION
+    // ============================================================
+
+    @Transactional
+    public void removeAffectedRevision(Long affectedRevisionId) {
+
+        ECRAffectedRevision affectedRevision =
+                affectedRevisionRepository.findById(affectedRevisionId)
+                        .orElseThrow(() ->
+                                new RuntimeException(
+                                        "Affected revision not found"));
+
+        affectedRevisionRepository.delete(affectedRevision);
     }
 }

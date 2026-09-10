@@ -8,14 +8,16 @@ import com.plm.plm_ai.item.exception.BOMNotFoundException;
 import com.plm.plm_ai.item.exception.BOMSelfReferenceException;
 import com.plm.plm_ai.item.repository.BOMLineRepository;
 import com.plm.plm_ai.item.repository.ItemRevisionRepository;
-import org.springframework.stereotype.Service;
 import com.plm.plm_ai.item.dto.WhereUsedResponse;
-import java.util.ArrayList;
 import com.plm.plm_ai.change.dto.ImpactAnalysisResponse;
-import java.util.HashSet;
-import java.util.Set;
 
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 @Service
 public class BOMLineService {
@@ -79,7 +81,7 @@ public class BOMLineService {
         // B -> C
         // C -> A  ❌
         //
-        // Before adding C -> A, we check whether
+        // Before adding C -> A, check whether
         // A can already reach C.
         if (hasPathToTarget(
                 childRevisionId,
@@ -178,6 +180,7 @@ public class BOMLineService {
     // DELETE BOM LINE
     // ============================================================
 
+    @Transactional
     public void deleteBOMLine(Long bomLineId) {
 
         if (!bomLineRepository.existsById(bomLineId)) {
@@ -189,20 +192,130 @@ public class BOMLineService {
         bomLineRepository.deleteById(bomLineId);
     }
 
+    // ============================================================
+    // UPDATE BOM QUANTITY
+    // ============================================================
+
+    @Transactional
+    public BOMLine updateQuantity(
+            Long bomLineId,
+            Integer quantity) {
+
+        // Rule 1: Quantity must be greater than zero
+        if (quantity == null || quantity <= 0) {
+            throw new IllegalArgumentException(
+                    "Quantity must be greater than zero"
+            );
+        }
+
+        // Find BOM line
+        BOMLine bomLine =
+                bomLineRepository.findById(bomLineId)
+                        .orElseThrow(() ->
+                                new BOMNotFoundException(
+                                        "BOM line not found"
+                                )
+                        );
+
+        // Update quantity
+        bomLine.setQuantity(quantity);
+
+        return bomLineRepository.save(bomLine);
+    }
+
+    // ============================================================
+    // REPLACE BOM COMPONENT
+    // ============================================================
+
+    @Transactional
+    public BOMLine replaceComponent(
+            Long bomLineId,
+            Long newChildRevisionId) {
+
+        // Find existing BOM line
+        BOMLine bomLine =
+                bomLineRepository.findById(bomLineId)
+                        .orElseThrow(() ->
+                                new BOMNotFoundException(
+                                        "BOM line not found"
+                                )
+                        );
+
+        // Find new child revision
+        ItemRevision newChildRevision =
+                itemRevisionRepository.findById(newChildRevisionId)
+                        .orElseThrow(() ->
+                                new BOMNotFoundException(
+                                        "Replacement revision not found"
+                                )
+                        );
+
+        // Get parent revision
+        ItemRevision parentRevision =
+                bomLine.getParentRevision();
+
+        // Prevent self-reference
+        if (parentRevision.getId().equals(newChildRevisionId)) {
+            throw new BOMSelfReferenceException(
+                    "A revision cannot be its own component"
+            );
+        }
+
+        // Prevent circular dependency
+        if (hasPathToTarget(
+                newChildRevisionId,
+                parentRevision.getId(),
+                new HashSet<>())) {
+
+            throw new BOMCircularDependencyException(
+                    "Circular BOM dependency detected"
+            );
+        }
+
+        // Prevent duplicate component
+        boolean duplicate =
+                bomLineRepository
+                        .existsByParentRevisionIdAndChildRevisionId(
+                                parentRevision.getId(),
+                                newChildRevisionId
+                        );
+
+        if (duplicate) {
+            throw new BOMDuplicateException(
+                    "Replacement component already exists in the BOM"
+            );
+        }
+
+        // Preserve the existing quantity.
+        // Only the child component is replaced.
+        bomLine.setChildRevision(newChildRevision);
+
+        return bomLineRepository.save(bomLine);
+    }
+
+    // ============================================================
+    // WHERE USED
+    // ============================================================
+
     public List<WhereUsedResponse> getWhereUsed(Long revisionId) {
 
         // Verify that the revision exists
         itemRevisionRepository.findById(revisionId)
                 .orElseThrow(() ->
                         new RuntimeException(
-                                "Item Revision not found with id: " + revisionId
+                                "Item Revision not found with id: "
+                                        + revisionId
                         ));
 
-        // Find all BOM lines where this revision is used as a child
+        // Find all BOM lines where this revision
+        // is used as a child
         List<BOMLine> bomLines =
-                bomLineRepository.findByChildRevisionId(revisionId);
+                bomLineRepository.findByChildRevisionId(
+                        revisionId
+                );
 
-        List<WhereUsedResponse> response = new ArrayList<>();
+        List<WhereUsedResponse> response =
+                new ArrayList<>();
 
         for (BOMLine bomLine : bomLines) {
 
@@ -223,7 +336,12 @@ public class BOMLineService {
         return response;
     }
 
-    public ImpactAnalysisResponse analyzeImpact(Long revisionId) {
+    // ============================================================
+    // IMPACT ANALYSIS
+    // ============================================================
+
+    public ImpactAnalysisResponse analyzeImpact(
+            Long revisionId) {
 
         ItemRevision affectedRevision =
                 itemRevisionRepository.findById(revisionId)
@@ -232,13 +350,22 @@ public class BOMLineService {
                                         "Revision not found"
                                 ));
 
+        // Find direct parents using this revision
         List<BOMLine> directWhereUsed =
-                bomLineRepository.findByChildRevisionId(revisionId);
+                bomLineRepository.findByChildRevisionId(
+                        revisionId
+                );
 
-        List<ImpactAnalysisResponse.ImpactItem> directImpacts =
+        List<ImpactAnalysisResponse.ImpactItem>
+                directImpacts =
                 new ArrayList<>();
 
-        Set<Long> visited = new HashSet<>();
+        Set<Long> visited =
+                new HashSet<>();
+
+        // ========================================================
+        // DIRECT IMPACTS
+        // ========================================================
 
         for (BOMLine bomLine : directWhereUsed) {
 
@@ -256,7 +383,12 @@ public class BOMLineService {
             visited.add(parent.getId());
         }
 
-        List<ImpactAnalysisResponse.ImpactItem> indirectImpacts =
+        // ========================================================
+        // INDIRECT IMPACTS
+        // ========================================================
+
+        List<ImpactAnalysisResponse.ImpactItem>
+                indirectImpacts =
                 new ArrayList<>();
 
         for (BOMLine bomLine : directWhereUsed) {
@@ -267,6 +399,10 @@ public class BOMLineService {
                     indirectImpacts
             );
         }
+
+        // ========================================================
+        // RISK CALCULATION
+        // ========================================================
 
         int bomImpactCount =
                 directImpacts.size()
@@ -284,6 +420,10 @@ public class BOMLineService {
             risk = "HIGH";
         }
 
+        // ========================================================
+        // RESPONSE
+        // ========================================================
+
         return new ImpactAnalysisResponse(
                 affectedRevision.getId(),
                 affectedRevision.getItem().getItemNumber(),
@@ -294,19 +434,29 @@ public class BOMLineService {
                 risk
         );
     }
+
+    // ============================================================
+    // FIND INDIRECT IMPACTS
+    // ============================================================
+
     private void findIndirectImpacts(
             Long revisionId,
             Set<Long> visited,
-            List<ImpactAnalysisResponse.ImpactItem> indirectImpacts) {
+            List<ImpactAnalysisResponse.ImpactItem>
+                    indirectImpacts) {
 
+        // Find all assemblies where this revision is used
         List<BOMLine> whereUsed =
-                bomLineRepository.findByChildRevisionId(revisionId);
+                bomLineRepository.findByChildRevisionId(
+                        revisionId
+                );
 
         for (BOMLine bomLine : whereUsed) {
 
             ItemRevision parent =
                     bomLine.getParentRevision();
 
+            // Already processed
             if (visited.contains(parent.getId())) {
                 continue;
             }
@@ -321,6 +471,7 @@ public class BOMLineService {
                     )
             );
 
+            // Continue recursively upward
             findIndirectImpacts(
                     parent.getId(),
                     visited,

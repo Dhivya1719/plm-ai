@@ -1,12 +1,14 @@
 package com.plm.plm_ai.change.controller;
 
 import com.plm.plm_ai.change.EngineeringChangeRequest;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
 import com.plm.plm_ai.change.ECRStatus;
 import com.plm.plm_ai.change.dto.ImpactAnalysisResponse;
 import com.plm.plm_ai.change.service.EngineeringChangeRequestService;
+
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
@@ -22,7 +24,12 @@ public class EngineeringChangeRequestController {
         this.ecrService = ecrService;
     }
 
+    // ============================================================
     // CREATE ECR
+    // ENGINEER + CHANGE_MANAGER
+    // ============================================================
+
+    @PreAuthorize("hasAnyRole('ENGINEER', 'CHANGE_MANAGER')")
     @PostMapping
     public ResponseEntity<EngineeringChangeRequest> createECR(
             @RequestBody EngineeringChangeRequest ecr) {
@@ -33,7 +40,12 @@ public class EngineeringChangeRequestController {
         );
     }
 
+    // ============================================================
     // GET ALL ECRs
+    // ENGINEER + REVIEWER + CHANGE_MANAGER
+    // ============================================================
+
+    @PreAuthorize("hasAnyRole('ENGINEER', 'REVIEWER', 'CHANGE_MANAGER')")
     @GetMapping
     public ResponseEntity<List<EngineeringChangeRequest>> getAllECRs() {
 
@@ -42,7 +54,12 @@ public class EngineeringChangeRequestController {
         );
     }
 
+    // ============================================================
     // GET ECR BY ID
+    // ENGINEER + REVIEWER + CHANGE_MANAGER
+    // ============================================================
+
+    @PreAuthorize("hasAnyRole('ENGINEER', 'REVIEWER', 'CHANGE_MANAGER')")
     @GetMapping("/{ecrId}")
     public ResponseEntity<EngineeringChangeRequest> getECRById(
             @PathVariable Long ecrId) {
@@ -52,7 +69,12 @@ public class EngineeringChangeRequestController {
         );
     }
 
+    // ============================================================
     // UPDATE ECR STATUS
+    // REVIEWER + CHANGE_MANAGER
+    // ============================================================
+
+    @PreAuthorize("hasAnyRole('ENGINEER', 'REVIEWER', 'CHANGE_MANAGER')")
     @PutMapping("/{ecrId}/status")
     public ResponseEntity<EngineeringChangeRequest> updateStatus(
             @PathVariable Long ecrId,
@@ -62,10 +84,13 @@ public class EngineeringChangeRequestController {
                 ecrService.updateStatus(ecrId, status)
         );
     }
-    // ============================================================
-// ECR IMPACT ANALYSIS
-// ============================================================
 
+    // ============================================================
+    // ECR IMPACT ANALYSIS
+    // ENGINEER + REVIEWER + CHANGE_MANAGER
+    // ============================================================
+
+    @PreAuthorize("hasAnyRole('ENGINEER', 'REVIEWER', 'CHANGE_MANAGER')")
     @GetMapping("/{ecrId}/impact-analysis")
     public ResponseEntity<List<ImpactAnalysisResponse>> analyzeECRImpact(
             @PathVariable Long ecrId) {
@@ -74,5 +99,4 @@ public class EngineeringChangeRequestController {
                 ecrService.analyzeECRImpact(ecrId)
         );
     }
-
 }

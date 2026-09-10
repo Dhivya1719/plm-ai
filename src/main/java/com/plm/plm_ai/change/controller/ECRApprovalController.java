@@ -7,8 +7,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
-
 @RestController
 @RequestMapping("/api/ecr")
 public class ECRApprovalController {
@@ -38,14 +36,5 @@ public class ECRApprovalController {
                                 comment
                         )
                 );
-    }
-
-    @GetMapping("/{ecrId}/approval-history")
-    public ResponseEntity<List<ECRApproval>> getApprovalHistory(
-            @PathVariable Long ecrId) {
-
-        return ResponseEntity.ok(
-                approvalService.getApprovalHistory(ecrId)
-        );
     }
 }
