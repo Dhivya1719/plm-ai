@@ -12,6 +12,8 @@ public interface ItemRevisionRepository
 
     List<ItemRevision> findByItem(Item item);
 
+    List<ItemRevision> findByItemId(Long itemId);
+
     Optional<ItemRevision> findByItemAndRevisionCode(
             Item item,
             String revisionCode
